@@ -67,7 +67,7 @@ if __name__ == '__main__':
     file = open(filename)
     points = json.load(file)['curve']
 
-    points.append(points[0])
+    # points.append(points[0])
 
     cubicSpline = BezierCubicSpline()
 
