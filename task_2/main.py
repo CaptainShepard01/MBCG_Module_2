@@ -24,18 +24,19 @@ class NurbsSurface:
     def get_basis_function(self, t, i, k, j):
         # TODO is it 0 or 1
         if k == 0:
-            if self.knot_vectors[j, i] <= t < self.knot_vectors[j, i + 1]:
+            if self.knot_vectors[j, i] <= t < self.knot_vectors[j, i + 1] or (
+                    self.knot_vectors[j, i] == self.knot_vectors[j, i + 1] and self.knot_vectors[j, i] <= t):
                 return 1
             return 0
         part_1 = 0.
         denominator_1 = (self.knot_vectors[j, i + k] - self.knot_vectors[j, i])
-        # if denominator_1 != 0:
-        part_1 = (t - self.knot_vectors[j, i]) / denominator_1 * self.get_basis_function(t, i, k - 1, j)
+        if denominator_1 != 0:
+            part_1 = (t - self.knot_vectors[j, i]) / denominator_1 * self.get_basis_function(t, i, k - 1, j)
 
         part_2 = 0.
         denominator_2 = (self.knot_vectors[j, i + k + 1] - self.knot_vectors[j, i + 1])
-        # if denominator_2 != 0:
-        part_2 = (self.knot_vectors[j, i + k + 1] - t) / denominator_2 * self.get_basis_function(t, i + 1, k - 1, j)
+        if denominator_2 != 0:
+            part_2 = (self.knot_vectors[j, i + k + 1] - t) / denominator_2 * self.get_basis_function(t, i + 1, k - 1, j)
 
         return part_1 + part_2
 
@@ -80,20 +81,28 @@ class NurbsSurface:
 
     def find_control_points(self):
         n = self.grid_dimensions[0]
-        n_matrix = np.zeros((n, n), dtype=np.float32)
         self.control_points = np.zeros((2 * n, n, 3))
 
         for row in range(n):
-            for point_index in range(n):
+            n_matrix1 = np.zeros((n, n), dtype=np.float32)
+            n_matrix2 = np.zeros((n, n), dtype=np.float32)
+            n_matrix1[0, 0] = 1.
+            n_matrix2[0, 0] = 1.
+            n_matrix1[n - 1, n - 1] = 1.
+            n_matrix2[n - 1, n - 1] = 1.
+            for point_index in range(1, n - 1):
                 for j in range(n):
-                    n_matrix[point_index, j] = self.get_basis_function(self.distances[row, point_index], j, self.basis_degree, row)
+                    n_matrix1[point_index, j] = self.get_basis_function(self.distances[row, point_index], j,
+                                                                        self.basis_degree, row)
+                    n_matrix2[point_index, j] = self.get_basis_function(self.distances[row + n, point_index], j,
+                                                                        self.basis_degree, row + n)
 
-            self.control_points[row] = np.linalg.solve(n_matrix, self.grid_points[row])
-            print(self.control_points[row])
+            self.control_points[row] = np.linalg.solve(n_matrix1, self.grid_points[row])
+            self.control_points[row + n] = np.linalg.solve(n_matrix2, self.grid_points[:, row])
 
 
 if __name__ == '__main__':
-    filename = "E:/Projects/University/MBCG_Module_2/task_1/resources/1.json"
+    filename = "D:/Projects/University/MBCG/task_1/resources/1.json"
     file = open(filename)
     data = json.load(file)["surface"]
     points = data["points"]
