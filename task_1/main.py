@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 
 
-class BezierCubicSpline():
+class BezierCubicSpline:
     def __init__(self):
         self.mPoints = None
         self.mA = None
@@ -51,10 +51,6 @@ class BezierCubicSpline():
 
             cv2.circle(img, (int(P1[0]), int(P1[1])), 7, (0, 255, 0), -1)
             cv2.circle(img, (int(P2[0]), int(P2[1])), 7, (0, 255, 0), -1)
-
-
-def clearCanvas(img):
-    img = 255
 
 
 def drawPoints(img, points, color, radius):
