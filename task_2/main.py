@@ -77,7 +77,7 @@ class NurbsSurface:
                 self.knot_vectors[i, j] = 0.
                 self.knot_vectors[i + n, j] = 0.
                 self.knot_vectors[i, knots_num - j - 1] = 1.
-                self.knot_vectors[i + n, n - j - 1] = 1.
+                self.knot_vectors[i + n, knots_num - j - 1] = 1.
 
     def find_control_points(self):
         n = self.grid_dimensions[0]
@@ -102,7 +102,7 @@ class NurbsSurface:
 
 
 if __name__ == '__main__':
-    filename = "D:/Projects/University/MBCG/task_1/resources/1.json"
+    filename = "E:/Projects/University/MBCG_Module_2/task_1/resources/1.json"
     file = open(filename)
     data = json.load(file)["surface"]
     points = data["points"]
