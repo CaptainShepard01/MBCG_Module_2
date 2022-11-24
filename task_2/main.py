@@ -102,7 +102,7 @@ class NurbsSurface:
 
 
 if __name__ == '__main__':
-    filename = "E:/Projects/University/MBCG_Module_2/task_1/resources/1.json"
+    filename = "E:/Projects/University/MBCG_Module_2/task_2/resources/1.json"
     file = open(filename)
     data = json.load(file)["surface"]
     points = data["points"]
