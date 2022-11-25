@@ -1,13 +1,9 @@
 import json
 import math
+import random
 import open3d
 import numpy as np
-
-
-def get_distance(first_point, second_point):
-    return math.sqrt(
-        (first_point[0] - second_point[0]) ** 2 + (first_point[1] - second_point[1]) ** 2 + (
-                first_point[2] - second_point[2]) ** 2)
+import os.path
 
 
 class NurbsSurface:
@@ -20,11 +16,12 @@ class NurbsSurface:
         self.s_row = None
         self.knots_column = None
         self.knots_row = None
+        self.weights = None
 
     def basis_function(self, t, i, k, knot_vector):
         if k == 0:
-            # if t == knot_vector[i] or knot_vector[i] < t < knot_vector[i + 1]
-            if knot_vector[i] <= t <= knot_vector[i + 1]:
+            if t == knot_vector[i] or knot_vector[i] < t < knot_vector[i + 1] or \
+                    (t == knot_vector[len(knot_vector) - 1] and i == len(knot_vector) - self.k - 2):
                 return 1
             return 0
         part_1 = 0.
@@ -39,12 +36,16 @@ class NurbsSurface:
 
         return part_1 + part_2
 
-    def initialize_data_points(self, points, grid, indices, k):
+    def initialize_surface(self, points, grid, indices, k):
         self.n = grid[0]
         self.k = k
         self.data_points = np.zeros((self.n, self.n, 3))
         for i, grid_position in enumerate(indices):
             self.data_points[grid_position[0], grid_position[1]] = points[i]
+        self.weights = np.zeros((self.n, self.n), dtype=np.float32)
+        surface.find_s()
+        surface.generate_knots()
+        surface.generate_control_points()
 
     def find_params_vector(self, points_vector):
         n = self.n
@@ -96,42 +97,77 @@ class NurbsSurface:
         q_matrix = np.zeros((n, n, 3))
         self.control_points = np.zeros((n, n, 3))
         temp_matrix = np.zeros((n, n), dtype=np.float32)
-        # temp_matrix[0, 0] = 1.
-        # temp_matrix[n - 1, n - 1] = 1.
 
         for d in range(n):
             for i in range(n):
-                # for j in range(1, n-1):
                 for j in range(n):
                     temp_matrix[i, j] = self.basis_function(self.s_column[i], j, k, self.knots_column)
             q_matrix[:, d] = np.linalg.solve(temp_matrix, self.data_points[:, d])
 
         for c in range(n):
-            for i in range(1, n - 1):
+            for i in range(n):
                 for j in range(n):
                     temp_matrix[i, j] = self.basis_function(self.s_row[i], j, k, self.knots_row)
             self.control_points[c] = np.linalg.solve(temp_matrix, q_matrix[c])
 
-    def get_point_on_surface(self, u, v):
+    def get_nurbs_denominator(self, u, v):
+        k = self.k
+        n = self.n
+        result = 0.
+        for i in range(n):
+            temp = 0
+            for j in range(n):
+                n_j_k = self.basis_function(v, j, k, self.knots_row)
+                temp += n_j_k * self.weights[i, j]
+            n_i_k = self.basis_function(u, i, k, self.knots_column)
+            result += temp * n_i_k
+
+        return result
+
+    def get_point_on_surface(self, u, v, is_nurbs=False):
         k = self.k
         n = self.n
         result = np.zeros(3)
         for i in range(n):
+            temp = 0
             for j in range(n):
-                n_i_k = self.basis_function(u, i, k, self.knots_column)
                 n_j_k = self.basis_function(v, j, k, self.knots_row)
-                result += n_i_k * n_j_k * self.control_points[i, j]
+                current_term = n_j_k * self.control_points[i, j]
+                if is_nurbs:
+                    current_term *= self.weights[i, j]
+                temp += current_term
+            n_i_k = self.basis_function(u, i, k, self.knots_column)
+            result += temp * n_i_k
 
         return result
 
-    def get_surface_mesh(self, points_count):
+    def get_surface_mesh(self, points_count, is_nurbs=False):
         surface_points = []
         u = np.linspace(0, 1, points_count)
         v = np.linspace(0, 1, points_count)
         for i in range(len(u)):
             for j in range(len(v)):
-                surface_points.append(self.get_point_on_surface(u[i], v[j]))
+                current_point = self.get_point_on_surface(u[i], v[j])
+                if is_nurbs:
+                    current_point /= self.get_nurbs_denominator(u[i], v[j])
+                surface_points.append(current_point)
         return surface_points
+
+    def generate_weights(self):
+        n = self.n
+        for i in range(n):
+            for j in range(n):
+                self.weights[i, j] = get_random_weight(.1, .2)
+
+
+def get_distance(first_point, second_point):
+    return math.sqrt(
+        (first_point[0] - second_point[0]) ** 2 + (first_point[1] - second_point[1]) ** 2 + (
+                first_point[2] - second_point[2]) ** 2)
+
+
+def get_random_weight(lower_bound, upper_bound):
+    return random.uniform(lower_bound, upper_bound)
 
 
 def matrix2array(matrix):
@@ -148,15 +184,16 @@ def get_triangles(n):
     result_array = []
     for i in range(n - 1):
         for j in range(n - 1):
-            result_array.append(np.array([i * n + j, i * n + j + 1, i * n + j + n]).astype(np.int32))
+            result_array.append(np.array([i * n + j, i * n + j + n, i * n + j + 1]).astype(np.int32))
             result_array.append(np.array([i * n + j + 1, i * n + j + n, i * n + j + n + 1]).astype(np.int32))
 
     return np.asarray(result_array)
 
 
 def get_mesh(surface):
-    point_count = 10
-    points_array = surface.get_surface_mesh(point_count)
+    point_count = 20
+    # points_array = surface.get_surface_mesh(point_count)
+    points_array = surface.get_surface_mesh(point_count, True)
     mesh = open3d.geometry.TriangleMesh()
     mesh.vertices = open3d.utility.Vector3dVector(points_array)
     triangles = get_triangles(point_count)
@@ -174,8 +211,10 @@ def visualize(surface):
     open3d.visualization.draw_geometries([input_points, get_mesh(surface)], mesh_show_back_face=True,
                                          mesh_show_wireframe=True)
 
+
 if __name__ == '__main__':
-    filename = "E:/Projects/University/MBCG_Module_2/task_2/resources/1.json"
+    filename = os.path.join(os.getcwd(), 'resources', '1.json')
+
     file = open(filename)
     data = json.load(file)["surface"]
     points = data["points"]
@@ -183,9 +222,6 @@ if __name__ == '__main__':
     grid = data["gridSize"]
 
     surface = NurbsSurface()
-    surface.initialize_data_points(points, grid, indices, 3)
-    surface.find_s()
-    surface.generate_knots()
-    surface.generate_control_points()
-
+    surface.initialize_surface(points, grid, indices, 3)
+    surface.generate_weights()
     visualize(surface)

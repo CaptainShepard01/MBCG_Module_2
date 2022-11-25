@@ -1,6 +1,7 @@
 import json
 import cv2
 import numpy as np
+import os.path
 
 
 class BezierCubicSpline:
@@ -44,13 +45,16 @@ class BezierCubicSpline:
 
             t = np.linspace(0, 1, 50)
             for k in range(0, len(t) - 1):
-                interval_start = self.get_point_on_curve(start_point, first_control_point, second_control_point, end_point, t[k])
-                interval_end = self.get_point_on_curve(start_point, first_control_point, second_control_point, end_point, t[k + 1])
+                interval_start = self.get_point_on_curve(start_point, first_control_point, second_control_point,
+                                                         end_point, t[k])
+                interval_end = self.get_point_on_curve(start_point, first_control_point, second_control_point,
+                                                       end_point, t[k + 1])
 
-                cv2.line(img, (int(interval_start[0]), int(interval_start[1])), (int(interval_end[0]), int(interval_end[1])), (255, 0, 0), 3)
+                cv2.line(img, (int(interval_start[0]), int(interval_start[1])),
+                         (int(interval_end[0]), int(interval_end[1])), (0, 0, 0), 3)
 
-            cv2.circle(img, (int(start_point[0]), int(start_point[1])), 7, (0, 255, 0), -1)
-            cv2.circle(img, (int(end_point[0]), int(end_point[1])), 7, (0, 255, 0), -1)
+            cv2.circle(img, (int(start_point[0]), int(start_point[1])), 5, (0, 0, 255), -1)
+            cv2.circle(img, (int(end_point[0]), int(end_point[1])), 5, (0, 0, 255), -1)
 
 
 def draw_points(img, points, color, radius):
@@ -59,7 +63,8 @@ def draw_points(img, points, color, radius):
 
 
 if __name__ == '__main__':
-    filename = "E:/Projects/University/MBCG_Module_2/task_1/resources/1.json"
+    filename = os.path.join(os.getcwd(), 'resources', '1.json')
+
     file = open(filename)
     points = json.load(file)['curve']
 
@@ -67,7 +72,7 @@ if __name__ == '__main__':
 
     img = np.ones((1000, 1000, 3), dtype=np.uint8) * 255
 
-    draw_points(img, points, (255, 0, 0), 5)
+    draw_points(img, points, (0, 0, 255), 5)
     cv2.imshow("Points", img)
     cv2.waitKey(0)
 
