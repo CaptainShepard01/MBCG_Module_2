@@ -223,9 +223,6 @@ def visualize(surface, number_of_points, is_weighted=False):
     data_points = open3d.geometry.PointCloud()
     data_points.points = open3d.utility.Vector3dVector(matrix2array(surface.data_points))
 
-    control_points = open3d.geometry.PointCloud()
-    control_points.points = open3d.utility.Vector3dVector(matrix2array(surface.control_points))
-
     surface_mesh = get_mesh(surface, number_of_points, is_weighted)
     open3d.visualization.draw_geometries([data_points, surface_mesh], mesh_show_back_face=True,
                                          mesh_show_wireframe=True)
