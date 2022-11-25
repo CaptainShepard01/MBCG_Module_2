@@ -24,6 +24,7 @@ class NurbsSurface:
                     (t == knot_vector[len(knot_vector) - 1] and i == len(knot_vector) - self.k - 2):
                 return 1
             return 0
+
         part_1 = 0.
         denominator_1 = (knot_vector[i + k] - knot_vector[i])
         if denominator_1 != 0:
@@ -40,18 +41,23 @@ class NurbsSurface:
         self.n = grid[0]
         self.k = k
         self.data_points = np.zeros((self.n, self.n, 3))
+
         for i, grid_position in enumerate(indices):
             self.data_points[grid_position[0], grid_position[1]] = points[i]
-        self.weights = np.zeros((self.n, self.n), dtype=np.float32)
+
+        self.weights = np.ones((self.n, self.n), dtype=np.float32)
+
         surface.find_s()
         surface.generate_knots()
         surface.generate_control_points()
 
     def find_params_vector(self, points_vector):
         n = self.n
+
         result = np.zeros(n, dtype=np.float32)
         result[0] = 0.
         result[n - 1] = 1.
+
         d = sum(get_distance(points_vector[i], points_vector[i - 1]) for i in range(1, n))
         for i in range(1, n - 1):
             result[i] = result[i - 1] + get_distance(points_vector[i], points_vector[i - 1]) / d
@@ -67,8 +73,10 @@ class NurbsSurface:
 
     def find_s(self):
         n = self.n
+
         column_matrix = np.zeros((n, n), dtype=np.float32)
         row_matrix = np.zeros((n, n), dtype=np.float32)
+
         for i in range(n):
             column_matrix[i] = self.find_params_vector(self.data_points[:, i])
             row_matrix[i] = self.find_params_vector(self.data_points[i])
@@ -80,11 +88,14 @@ class NurbsSurface:
         k = self.k
         n = self.n
         knots_num = n + k + 1
+
         self.knots_column = np.zeros(knots_num, dtype=np.float32)
         self.knots_row = np.zeros(knots_num, dtype=np.float32)
+
         for j in range(1, n - k):
             self.knots_column[j + k] = 1. / k * sum(self.s_column[m] for m in range(j, j + k))
             self.knots_row[j + k] = 1. / k * sum(self.s_row[m] for m in range(j, j + k))
+
         for j in range(k + 1):
             self.knots_column[j] = 0.
             self.knots_row[j] = 0.
@@ -94,6 +105,7 @@ class NurbsSurface:
     def generate_control_points(self):
         n = self.n
         k = self.k
+
         q_matrix = np.zeros((n, n, 3))
         self.control_points = np.zeros((n, n, 3))
         temp_matrix = np.zeros((n, n), dtype=np.float32)
@@ -114,6 +126,7 @@ class NurbsSurface:
         k = self.k
         n = self.n
         result = 0.
+
         for i in range(n):
             temp = 0
             for j in range(n):
@@ -124,16 +137,17 @@ class NurbsSurface:
 
         return result
 
-    def get_point_on_surface(self, u, v, is_nurbs=False):
+    def get_point_on_surface(self, u, v, is_weighted=False):
         k = self.k
         n = self.n
         result = np.zeros(3)
+
         for i in range(n):
             temp = 0
             for j in range(n):
                 n_j_k = self.basis_function(v, j, k, self.knots_row)
                 current_term = n_j_k * self.control_points[i, j]
-                if is_nurbs:
+                if is_weighted:
                     current_term *= self.weights[i, j]
                 temp += current_term
             n_i_k = self.basis_function(u, i, k, self.knots_column)
@@ -141,23 +155,25 @@ class NurbsSurface:
 
         return result
 
-    def get_surface_mesh(self, points_count, is_nurbs=False):
+    def get_surface_mesh(self, points_count, is_weighted=False):
         surface_points = []
         u = np.linspace(0, 1, points_count)
         v = np.linspace(0, 1, points_count)
+
         for i in range(len(u)):
             for j in range(len(v)):
-                current_point = self.get_point_on_surface(u[i], v[j])
-                if is_nurbs:
+                current_point = self.get_point_on_surface(u[i], v[j], is_weighted)
+                if is_weighted:
                     current_point /= self.get_nurbs_denominator(u[i], v[j])
                 surface_points.append(current_point)
         return surface_points
 
-    def generate_weights(self):
+    def generate_weights(self, lower_bound, upper_bound):
         n = self.n
+
         for i in range(n):
             for j in range(n):
-                self.weights[i, j] = get_random_weight(.1, .2)
+                self.weights[i, j] = get_random_weight(lower_bound, upper_bound)
 
 
 def get_distance(first_point, second_point):
@@ -174,14 +190,17 @@ def matrix2array(matrix):
     n = len(matrix)
     m = len(matrix[0])
     result_array = np.zeros((n * n, 3))
+
     for i in range(n):
         for j in range(m):
             result_array[i * n + j] = matrix[i, j]
+
     return result_array
 
 
 def get_triangles(n):
     result_array = []
+
     for i in range(n - 1):
         for j in range(n - 1):
             result_array.append(np.array([i * n + j, i * n + j + n, i * n + j + 1]).astype(np.int32))
@@ -190,10 +209,9 @@ def get_triangles(n):
     return np.asarray(result_array)
 
 
-def get_mesh(surface):
-    point_count = 20
-    # points_array = surface.get_surface_mesh(point_count)
-    points_array = surface.get_surface_mesh(point_count, True)
+def get_mesh(surface, number_of_points, is_weighted=False):
+    point_count = number_of_points
+    points_array = surface.get_surface_mesh(point_count, is_weighted)
     mesh = open3d.geometry.TriangleMesh()
     mesh.vertices = open3d.utility.Vector3dVector(points_array)
     triangles = get_triangles(point_count)
@@ -201,14 +219,15 @@ def get_mesh(surface):
     return mesh
 
 
-def visualize(surface):
-    input_points = open3d.geometry.PointCloud()
-    input_points.points = open3d.utility.Vector3dVector(matrix2array(surface.data_points))
+def visualize(surface, number_of_points, is_weighted=False):
+    data_points = open3d.geometry.PointCloud()
+    data_points.points = open3d.utility.Vector3dVector(matrix2array(surface.data_points))
 
     control_points = open3d.geometry.PointCloud()
     control_points.points = open3d.utility.Vector3dVector(matrix2array(surface.control_points))
 
-    open3d.visualization.draw_geometries([input_points, get_mesh(surface)], mesh_show_back_face=True,
+    surface_mesh = get_mesh(surface, number_of_points, is_weighted)
+    open3d.visualization.draw_geometries([data_points, surface_mesh], mesh_show_back_face=True,
                                          mesh_show_wireframe=True)
 
 
@@ -222,6 +241,16 @@ if __name__ == '__main__':
     grid = data["gridSize"]
 
     surface = NurbsSurface()
-    surface.initialize_surface(points, grid, indices, 3)
-    surface.generate_weights()
-    visualize(surface)
+
+    is_weighted = True
+    lower_bound = 0.1
+    upper_bound = 1
+    number_of_points = 20
+    basis_degree = 3
+
+    surface.initialize_surface(points, grid, indices, basis_degree)
+
+    if is_weighted:
+        surface.generate_weights(lower_bound, upper_bound)
+
+    visualize(surface, number_of_points, is_weighted)
