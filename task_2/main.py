@@ -240,9 +240,9 @@ if __name__ == '__main__':
     surface = NurbsSurface()
 
     is_weighted = True
-    lower_bound = 0.1
+    lower_bound = 0
     upper_bound = 1
-    number_of_points = 20
+    number_of_points = 50
     basis_degree = 3
 
     surface.initialize_surface(points, grid, indices, basis_degree)
